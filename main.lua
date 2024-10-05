@@ -4,21 +4,26 @@ local K2 = 0
 local screen_size = { height = 50, width = 50 }
 
 local center_radius = 50 -- The Donut hole radius
-local edge_radius = 20   -- The Circle inside that forms the thickness of the donut
-local screen_donut_distance = 150
+local edge_radius = 10   -- The Circle inside that forms the thickness of the donut
+local screen_donut_distance = 200
 local camera_screen_distance = 40
 local camera_donut_distance = camera_screen_distance + screen_donut_distance
 
 local lightLevel = {
     ". ",
     "- ",
-    "| ",
-    "% ",
+    "^ ",
+    "* ",
     ": ",
-    "& ",
+    "| ",
+    "$ ",
     "# ",
     "@ ",
 }
+
+local lightLevelCount = 0
+for _ in pairs(lightLevel) do lightLevelCount = lightLevelCount + 1 end
+
 
 local buffers = {
     screen = {},
@@ -42,10 +47,14 @@ local theta_step = 0.02 -- Donut center, smaller step to skip less pixels
 MAX_ANGLE = math.pi * 2
 
 local A = 0 -- Rotation Angle on the Y axis
+local B = 0 -- Rotation Angle on the Y axis
+
 
 function RenderFrame()
     local cosA = math.cos(A)
     local sinA = math.sin(A)
+    local cosB = math.cos(B)
+    local sinB = math.sin(B)
 
     for theta = 0, MAX_ANGLE, theta_step do
         local cos_theta = math.cos(theta)
@@ -76,9 +85,13 @@ function RenderFrame()
             local center_rotated_y = point_x * sinA + point_y * cosA
             local center_rotated_z = point_z
 
-            local x = center_rotated_x + camera_donut_distance
-            local y = center_rotated_y
-            local z = center_rotated_z
+            local center_B_rotated_x = center_rotated_x * cosB - center_rotated_z * sinB
+            local center_B_rotated_y = center_rotated_y
+            local center_B_rotated_z = center_rotated_x * sinB + center_rotated_z * cosB
+
+            local x = center_B_rotated_x + camera_donut_distance
+            local y = center_B_rotated_y
+            local z = center_B_rotated_z
 
             local screen_y = math.floor((y * camera_screen_distance) / x) + (screen_size.width / 2) + 1
             local screen_z = math.floor((z * camera_screen_distance) / x) + (screen_size.height / 2) + 1
@@ -87,19 +100,23 @@ function RenderFrame()
             local direction_y = center_x * sinA + center_y * cosA
             local direction_z = center_z
 
-            local face_x = center_rotated_x - direction_x
-            local face_y = center_rotated_y - direction_y
-            local face_z = center_rotated_z - direction_z
+            local final_direction_x = direction_x * cosB - direction_z * sinB
+            local final_direction_y = direction_y
+            local final_direction_z = direction_x * sinB + direction_z * cosB
+
+            local face_x = center_B_rotated_x - final_direction_x
+            local face_y = center_B_rotated_y - final_direction_y
+            local face_z = center_B_rotated_z - final_direction_z
 
             local magnitude_camera = math.sqrt(200 * 200 + screen_y * screen_y + screen_z * screen_z)
             local magnitude_face = math.sqrt(face_x * face_x + face_y * face_y + face_z * face_z)
 
             local L = math.max(0,
-                -(((center_rotated_x - direction_x) * 200 + (center_rotated_y - direction_y) * screen_y + (center_rotated_z - direction_z) * screen_z) / (magnitude_face * magnitude_camera)))
+                -(((face_x) * 200 + (face_y) * screen_y + (face_z) * screen_z) / (magnitude_face * magnitude_camera)))
             local depth = 1 / x
 
             if L > 0 and depth > buffers.z[screen_z][screen_y] and screen_y < screen_size.height and screen_y > 0 and screen_z < screen_size.width and screen_z > 0 then
-                buffers.screen[screen_z][screen_y] = lightLevel[math.ceil(L * 8)]
+                buffers.screen[screen_z][screen_y] = lightLevel[math.ceil(L * L * L * L * lightLevelCount)]
                 buffers.z[screen_z][screen_y] = depth
             end
         end
@@ -134,7 +151,7 @@ function PrintFrame()
             --         line = line .. ' ';
             --     end
             -- else
-                line = line .. buffers.screen[i][j];
+            line = line .. buffers.screen[i][j];
             -- end
         end
         io.write(line .. '\n')
@@ -148,6 +165,6 @@ while true do
     InitScreenBuffer()
     RenderFrame()
     PrintFrame()
-    print(A)
     A = A + math.pi / 64
+    B = B + math.pi * 2 / 64
 end
